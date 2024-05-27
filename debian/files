@@ -1,0 +1,4 @@
+libsrs2-dbgsym_1.0.11-1.1_amd64.deb debug optional automatic=yes
+libsrs2-dev_1.0.11-1.1_amd64.deb devel optional
+libsrs2_1.0.11-1.1_amd64.buildinfo - optional
+libsrs2_1.0.11-1.1_amd64.deb libs optional

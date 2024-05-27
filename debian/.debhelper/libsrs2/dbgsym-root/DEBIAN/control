@@ -1,0 +1,12 @@
+Package: libsrs2-dbgsym
+Source: libsrs2
+Version: 1.0.11-1.1
+Auto-Built-Package: debug-symbols
+Architecture: amd64
+Maintainer: Shevek <srs@anarres.org>
+Installed-Size: 49
+Depends: libsrs2 (= 1.0.11-1.1)
+Section: debug
+Priority: optional
+Description: debug symbols for libsrs2
+Build-Ids: 43043086464a8eb263e681cb33c602f71cb37a9a c78c98261656ceee8ca007f4bdd2fadc1eb04537

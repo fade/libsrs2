@@ -1,0 +1,15 @@
+Package: libsrs2
+Version: 1.0.11-1.1
+Architecture: amd64
+Maintainer: Shevek <srs@anarres.org>
+Installed-Size: 157
+Depends: libc6 (>= 2.34)
+Section: libs
+Priority: optional
+Description: SRS email address rewriting engine
+ libsrs2 is the next generation SRS library. SPF verifies that the
+ Sender address of a mail matches (according to some policy) the
+ client IP address which submits the mail. When a mail is forwarded,
+ the sender address must be rewritten to comply with SPF policy. The
+ Sender Rewriting Scheme, or SRS, provides a standard for this
+ rewriting which is not vulnerable to attacks by spammers.

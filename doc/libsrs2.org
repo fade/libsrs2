@@ -1,0 +1,150 @@
+#+TITLE: libsrs2 — Sender Rewriting Scheme for the DSMR stack
+#+AUTHOR: Brian O'Reilly
+#+LANGUAGE: en
+#+OPTIONS: toc:2 num:nil
+#+TEXINFO_DIR_CATEGORY: Mail
+#+TEXINFO_DIR_TITLE: libsrs2: (libsrs2).
+#+TEXINFO_DIR_DESC: Sender Rewriting Scheme library used by the DSMR qmail rebuild for SPF-safe forwarding
+#+TEXINFO_FILENAME: libsrs2.info
+
+* TL;DR
+:PROPERTIES:
+:DESCRIPTION: What SRS is for and what this adopted package provides.
+:END:
+
+=libsrs2= is Shevek's Sender Rewriting Scheme library (originally 2004), adopted
+into the DSMR stack and re-packaged for Debian 13. It provides a small C library
+(=libsrs2.so=, header =/usr/include/srs2.h=) and a command-line tool =srs= for
+rewriting envelope sender addresses so that *forwarded* mail still passes the
+forwarding host's SPF policy.
+
+This manual documents *what the DSMR packaging provides and why* — the SRS
+problem it solves, the library and CLI surface, who in the stack consumes it,
+and the packaging quirks of an adopted, upstream-less source. It is not a
+re-derivation of the upstream API reference at http://www.libsrs2.org/.
+
+The package builds two binaries:
+
+- =libsrs2= — the runtime shared library (=libsrs2.so.0=), the static archive,
+  and the =srs= command-line tool (=/usr/bin/srs=, man *srs(1)*);
+- =libsrs2-dev= — the =srs2.h= header for building consumers against the API.
+
+* Theory of operation
+:PROPERTIES:
+:DESCRIPTION: The SRS problem, the rewriting scheme, and the API.
+:END:
+
+** Why SRS exists
+SPF lets a domain declare which hosts may send mail bearing its envelope sender.
+When host /B/ *forwards* a message it received for =alice@A= on to =bob@C=, /B/
+relays it with the original sender =alice@A=. /C/ checks SPF for domain /A/,
+sees that /B/ is not an authorised sender for /A/, and rejects the forward. SRS
+fixes this by having /B/ rewrite the envelope sender into its *own* domain on the
+way out, while preserving enough information to route a later bounce back to the
+real originator.
+
+** The rewriting scheme
+SRS rewrites =alice@A= to a local-part in /B/'s domain of the form
+
+: SRS0=HASH=TT=A=alice@B
+
+where =HASH= is a short HMAC over the timestamp =TT= and the original address,
+keyed by a site secret. A bounce returned to that address is *reversed*: the
+library validates the HMAC (rejecting forged or time-expired tokens) and
+reconstructs =alice@A=. A second forward of an already-rewritten address uses the
+=SRS1= form so the chain stays reversible without unbounded growth.
+
+** The API
+=srs2.h= exposes a compact, allocation-light C API:
+
+- =srs_new()= / =srs_init()= / =srs_free()= :: lifecycle of an =srs_t= context.
+- =srs_add_secret()= :: install the site HMAC secret(s); multiple secrets allow
+  rotation (the newest signs, all are accepted on reverse).
+- =srs_forward()= / =srs_forward_alloc()= :: rewrite an address for sending.
+- =srs_reverse()= / =srs_reverse_alloc()= :: validate and undo a rewrite.
+- =srs_set_maxage()= … =srs_set_separator()= :: tune the token's time window,
+  HMAC length, minimum accepted length, and separator character.
+
+The library is deliberately small and does almost no dynamic allocation; it is
+interface-compatible with the Perl =Mail::SRS= conventions.
+
+* Usage
+:PROPERTIES:
+:DESCRIPTION: The srs CLI, linking, and stack integration.
+:END:
+
+The =srs= command exercises the library from the shell — useful for testing a
+secret and inspecting forward/reverse behaviour (see *srs(1)*):
+
+: $ srs -s <secret> -f alice@example.org example.com    # forward
+: $ srs -s <secret> -r 'SRS0=....=example.org=alice@example.com'  # reverse
+
+Link a consumer against the library:
+
+: cc ... -lsrs2          # header: #include <srs2.h>
+
+In the DSMR stack the qmail rebuild consumes libsrs2 through its =srsfilter=
+helper, which rewrites the envelope sender on outbound forwards and reverses
+SRS-encoded bounces inbound. qmail reads its SRS site configuration from
+=control/srs_secrets= and the =control/srs_*= tuning files (see the *qmail*
+info manual); libsrs2 supplies the cryptographic engine those controls drive.
+
+* Configuration
+:PROPERTIES:
+:DESCRIPTION: The library has no config of its own; consumers set policy.
+:END:
+
+The library itself reads no configuration files — all policy (the secret, the
+maximum token age, hash length, separator) is supplied by the *consumer* through
+the API. In the DSMR stack that consumer is qmail's =srsfilter=, configured via
+=/var/qmail/control/=:
+
+- =srs_secrets= :: one or more HMAC secrets (first signs; all verify).
+- =srs_domain= :: the domain rewrites are anchored in.
+- =srs_maxage= :: days a rewritten address remains reversible.
+- =srs_hashlength= / =srs_hashmin= :: HMAC length emitted / minimum accepted.
+- =srs_separator= :: the separator character (=+=, ===, or =-=).
+
+* Extension points
+:PROPERTIES:
+:DESCRIPTION: Secret rotation and embedding the library elsewhere.
+:END:
+
+- *Secret rotation.* =srs_add_secret()= accepts several secrets; sign with the
+  newest while still reversing tokens minted under older ones. Rotate by
+  prepending a new secret and retiring the oldest after =srs_maxage= has passed.
+- *Other consumers.* Any MTA filter can link =-lsrs2= and drive the same engine;
+  the API is independent of qmail. The =srs= CLI is the reference example.
+
+* Gotchas and debugging
+:PROPERTIES:
+:DESCRIPTION: The adopted-package layout and build relics.
+:END:
+
+- *Adopted, upstream-less source.* This is a Debian-native adoption: there is no
+  upstream git branch and no orig tarball. =debian/gbp.conf= sets
+  =no-create-orig = True= precisely for that reason — builds are binary-only
+  (=gbp buildpackage --git-ignore-new -us -uc -b=) and never consume a tarball.
+  Do not try to generate or fetch an =.orig.tar=; the whole source lives in the
+  Debian tree.
+- *Vintage build system.* The package keeps its 2004-era autotools +
+  hand-written =debian/rules= (it predates the =dh= sequencer). It builds clean;
+  resist modernising it as a side effect of unrelated work.
+- *The soname comes from libtool, not =rules=.* =debian/rules= carries a relic
+  =version=2.0.5/major=2= comment that is *unused*; the actual soname is set by
+  libtool's =-version-info 0:0:0=, yielding =libsrs2.so.0=. Trust the installed
+  =.so= names, not the comment.
+- *A reversed token returns failure, not a crash.* =srs_reverse()= rejects forged
+  or expired tokens by return code; a consumer that mishandles the failure path
+  (treating it as a valid address) is the usual integration bug — check the
+  caller, not the library.
+
+* See also
+:PROPERTIES:
+:DESCRIPTION: The consumer and the command.
+:END:
+
+*srs(1)* (the command-line tool), and the *qmail* info manual (the =srsfilter=
+consumer and its =control/srs_*= settings). Upstream reference:
+http://www.libsrs2.org/. See the DSMR stack documentation website for the full
+dependency graph.

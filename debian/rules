@@ -8,6 +8,11 @@ export DH_VERBOSE=1
 # This is the debhelper compatibility version to use.
 export DH_COMPAT=10
 
+# DSMR-focused info manual + HTML page, derived from the org source of truth
+# (doc/libsrs2.org) at build time.  Generators are Build-Depends only.
+EMACS ?= emacs
+TOPIC = doc/libsrs2
+
 # These are used for cross-compiling and for saving the configure script
 # from having to guess our platform (since we know it already)
 DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
@@ -43,6 +48,16 @@ build-stamp:  config.status
 	# Add here commands to compile the package.
 	$(MAKE)
 
+	# Generate the GNU info manual and HTML doc page from org.
+	$(EMACS) --batch -Q \
+	    --eval "(require 'ox-texinfo)" \
+	    --eval "(with-current-buffer (find-file-noselect \"$(TOPIC).org\") (org-texinfo-export-to-texinfo))"
+	makeinfo --no-split "$(TOPIC).texi" -o "$(TOPIC).info"
+	$(EMACS) --batch -Q \
+	    --eval "(require 'ox-html)" \
+	    --eval "(setq org-html-validation-link nil)" \
+	    --eval "(with-current-buffer (find-file-noselect \"$(TOPIC).org\") (org-html-export-to-html))"
+
 	touch build-stamp
 
 clean:
@@ -51,6 +66,7 @@ clean:
 	rm -f build-stamp 
 
 	# Add here commands to clean up after the build process.
+	rm -f $(TOPIC).texi $(TOPIC).info $(TOPIC).html
 	-$(MAKE) distclean
 	-test -r /usr/share/misc/config.sub && \
 	  cp -f /usr/share/misc/config.sub config.sub

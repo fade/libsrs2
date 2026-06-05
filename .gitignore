@@ -1,0 +1,17 @@
+# generated documentation (org is the source of truth)
+doc/libsrs2.texi
+doc/libsrs2.info
+doc/libsrs2.html
+
+# emacs backups
+*~
+
+# debian build outputs
+debian/libsrs2/
+debian/libsrs2-dev/
+debian/files
+debian/*.substvars
+debian/*.debhelper.log
+debian/tmp/
+build-stamp
+config.status

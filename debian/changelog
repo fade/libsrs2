@@ -1,3 +1,13 @@
+libsrs2 (1.0.18-7) trixie; urgency=low
+
+  * Ship a DSMR-focused GNU info manual and HTML doc page derived from an
+    org-mode source of truth (doc/libsrs2.org): the SRS problem this adopted
+    library solves, the library and srs(1) CLI surface, how qmail's srsfilter
+    consumes it, and the adopted-package build quirks.  Generators (emacs,
+    texinfo, pandoc) are Build-Depends only.
+
+ -- Brian O'Reilly <fade@deepsky.com>  Fri, 05 Jun 2026 10:30:00 -0400
+
 libsrs2 (1.0.18-6) trixie; urgency=low
 
   * Fix vpasswd-postgres-convert: handle legacy 8-field clear-passwd format
